@@ -1,0 +1,32 @@
+//
+// DJMT1Device.iig
+// Audio device object for the Pioneer DJM-T1: 6 in / 6 out, 24-bit packed, 48 kHz.
+//
+
+#ifndef DJMT1Device_h
+#define DJMT1Device_h
+
+#include <AudioDriverKit/IOUserAudioDevice.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
+
+class DJMT1Device : public IOUserAudioDevice
+{
+public:
+    virtual bool initDevice(IOUserAudioDriver* in_driver,
+                            IOUSBHostInterface* in_interface,
+                            OSString* in_device_uid,
+                            OSString* in_model_uid,
+                            OSString* in_manufacturer_uid) LOCALONLY;
+    virtual void free() override;
+
+    virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
+    virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
+
+    virtual void HandleIsochInComplete(OSAction* action,
+                                       IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+    virtual void HandleIsochOutComplete(OSAction* action,
+                                        IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+};
+
+#endif /* DJMT1Device_h */

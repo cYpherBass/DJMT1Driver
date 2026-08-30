@@ -1,0 +1,67 @@
+name: DJMT1Driver
+options:
+  bundleIdPrefix: de.cypher
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: DBCZNZ63SD
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Apple Development"
+targets:
+  DJMT1Installer:
+    type: application
+    platform: macOS
+    sources: [App]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.cypher.djmt1
+        CODE_SIGN_ENTITLEMENTS: App/DJMT1Installer.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+    dependencies:
+      - target: DJMT1AudioDriver
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+  DJMT1AudioDriver:
+    type: driver-extension
+    platform: macOS
+    sources:
+      - path: Driver
+        buildPhase: sources
+        includes:
+          - "*.iig"
+          - "*.cpp"
+    info:
+      path: Driver/Info.plist
+      properties:
+        CFBundleName: DJM-T1 Audio
+        OSBundleUsageDescription: "Audio driver for the Pioneer DJM-T1 mixer"
+        IOKitPersonalities:
+          DJMT1AudioDriver:
+            CFBundleIdentifier: de.cypher.djmt1.audio
+            CFBundleIdentifierKernel: com.apple.kpi.iokit
+            IOClass: IOUserService
+            IOUserClass: DJMT1Driver
+            IOUserServerName: de.cypher.djmt1.audio
+            IOProviderClass: IOUSBHostInterface
+            IOMatchCategory: de.cypher.djmt1.audio
+            idVendor: 2276
+            idProduct: 350
+            bConfigurationValue: 1
+            bInterfaceNumber: 0
+            IOUserAudioDriverUserClientProperties:
+              IOClass: IOUserUserClient
+              IOUserClass: IOUserAudioDriverUserClient
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.cypher.djmt1.audio
+        CODE_SIGN_ENTITLEMENTS: Driver/DJMT1AudioDriver.entitlements
+        CLANG_CXX_LANGUAGE_STANDARD: gnu++17
+        SDKROOT: driverkit
+        DRIVERKIT_DEPLOYMENT_TARGET: "23.0"
+        OTHER_LDFLAGS: ["-framework", "DriverKit", "-framework", "USBDriverKit", "-framework", "AudioDriverKit"]
