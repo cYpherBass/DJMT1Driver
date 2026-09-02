@@ -1,8 +1,13 @@
-# DJM-T1 Audio Driver for macOS 26
+# DJ Legacy Audio Drivers for macOS 26
 
-Modern AudioDriverKit driver (DriverKit system extension) for the Pioneer
-DJM-T1, replacing Pioneer's last official driver (kext v1.2.0 from 2015,
-x86_64 only, no longer loadable on macOS 26 / Apple Silicon).
+Modern AudioDriverKit drivers (DriverKit system extension) for discontinued
+DVS audio interfaces whose vendor drivers no longer load on current macOS:
+
+- **Pioneer DJM-T1** (implemented) — replaces Pioneer's last official driver
+  (kext v1.2.0 from 2015, x86_64 only, not loadable on macOS 26 / Apple
+  Silicon)
+- **Rane SL2** (planned) — replaces Rane's Core Audio driver (last supported
+  on macOS 10.15)
 
 ## Hardware contract (reverse-engineered & verified on the device)
 
@@ -72,6 +77,34 @@ approve the extension in System Settings → Privacy & Security.
 - [ ] Channel names/layout (map CH1/CH2/AUX assignments on the device)
 - [ ] Volume/mute controls if the device supports them (the legacy driver
   reported none)
+
+## Rane SL2 (planned)
+
+Full hardware contract is already known — no reverse engineering needed. The
+SL2 (VID 0x1CC5, PID 0x0013) is a nearly textbook **USB Audio Class 2.0**
+device with valid class-specific descriptors (`bInterfaceProtocol =
+UAC_VERSION_2`); it is only rejected by class drivers because it reports
+vendor-specific interface classes (0xFF) and omits the interface association
+descriptor. Documented by the Linux quirk in
+[Reinharderino/rane-sl2-linux](https://github.com/Reinharderino/rane-sl2-linux)
+(full `lsusb -v` dump and ALSA quirks-table patch):
+
+| Property | Value |
+|---|---|
+| USB | VID 0x1CC5 (7365), PID 0x0013 (19), high speed |
+| Interfaces | 0 = audio control (UAC2, vendor-coded), 1 alt 1 = OUT stream, 2 alt 1 = IN stream, 3 = HID (leave to the system) |
+| Endpoints | EP 0x06 OUT / EP 0x82 IN (implicit feedback), isochronous asynchronous, 112 B, bInterval 1 (125 µs microframes) |
+| Format | fixed 44.1 kHz, 24-bit in 4-byte subslots (S32_LE containers), 4 in + 4 out |
+| Rate setting | **none** — the device stalls both `UAC2_CS_CUR` and `UAC2_CS_RANGE`; never send sample-rate requests |
+| Clocking | OUT is paced by implicit feedback from the IN endpoint |
+| Known quirk | slow enumeration on some xHCI hosts (device wakes slower than the host waits) |
+
+Differences from the DJM-T1 engine: microframe pacing (125 µs instead of
+1 ms), variable packet sizes (5/6 samples ≙ 80/96 B at 44.1 kHz), implicit
+feedback pacing for the OUT stream, and two separate streaming interfaces to
+claim instead of one. `tools/sl2probe.m` verifies the contract from macOS
+user space once an SL2 is connected. The USB transport entitlement in
+`Driver/DJMT1AudioDriver.entitlements` already includes both device IDs.
 
 ## Related work
 

@@ -14,6 +14,12 @@
 			<key>idProduct</key>
 			<integer>350</integer>
 		</dict>
+		<dict>
+			<key>idVendor</key>
+			<integer>7365</integer>
+			<key>idProduct</key>
+			<integer>19</integer>
+		</dict>
 	</array>
 </dict>
 </plist>
