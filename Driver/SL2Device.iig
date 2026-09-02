@@ -1,0 +1,34 @@
+//
+// SL2Device.iig
+// Audio device object for the Rane SL2: 4 in / 4 out, 24-bit in 4-byte
+// subslots, fixed 44.1 kHz.
+//
+
+#ifndef SL2Device_h
+#define SL2Device_h
+
+#include <AudioDriverKit/IOUserAudioDevice.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
+
+class SL2Device : public IOUserAudioDevice
+{
+public:
+    virtual bool initDevice(IOUserAudioDriver* in_driver,
+                            IOUSBHostInterface* in_out_interface,
+                            IOUSBHostInterface* in_in_interface,
+                            OSString* in_device_uid,
+                            OSString* in_model_uid,
+                            OSString* in_manufacturer_uid) LOCALONLY;
+    virtual void free() override;
+
+    virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
+    virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
+
+    virtual void HandleIsochInComplete(OSAction* action,
+                                       IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+    virtual void HandleIsochOutComplete(OSAction* action,
+                                        IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+};
+
+#endif /* SL2Device_h */

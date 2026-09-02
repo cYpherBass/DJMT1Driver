@@ -50,6 +50,38 @@
 			<key>idVendor</key>
 			<integer>2276</integer>
 		</dict>
+		<key>RaneSL2Audio</key>
+		<dict>
+			<key>CFBundleIdentifier</key>
+			<string>de.cypher.djmt1.audio</string>
+			<key>CFBundleIdentifierKernel</key>
+			<string>com.apple.kpi.iokit</string>
+			<key>IOClass</key>
+			<string>IOUserService</string>
+			<key>IOMatchCategory</key>
+			<string>de.cypher.djmt1.audio</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBHostInterface</string>
+			<key>IOUserAudioDriverUserClientProperties</key>
+			<dict>
+				<key>IOClass</key>
+				<string>IOUserUserClient</string>
+				<key>IOUserClass</key>
+				<string>IOUserAudioDriverUserClient</string>
+			</dict>
+			<key>IOUserClass</key>
+			<string>DJMT1Driver</string>
+			<key>IOUserServerName</key>
+			<string>de.cypher.djmt1.audio</string>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>1</integer>
+			<key>idProduct</key>
+			<integer>19</integer>
+			<key>idVendor</key>
+			<integer>7365</integer>
+		</dict>
 	</dict>
 	<key>OSBundleUsageDescription</key>
 	<string>Audio driver for the Pioneer DJM-T1 mixer</string>

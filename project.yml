@@ -57,6 +57,21 @@ targets:
             IOUserAudioDriverUserClientProperties:
               IOClass: IOUserUserClient
               IOUserClass: IOUserAudioDriverUserClient
+          RaneSL2Audio:
+            CFBundleIdentifier: de.cypher.djmt1.audio
+            CFBundleIdentifierKernel: com.apple.kpi.iokit
+            IOClass: IOUserService
+            IOUserClass: DJMT1Driver
+            IOUserServerName: de.cypher.djmt1.audio
+            IOProviderClass: IOUSBHostInterface
+            IOMatchCategory: de.cypher.djmt1.audio
+            idVendor: 7365
+            idProduct: 19
+            bConfigurationValue: 1
+            bInterfaceNumber: 1
+            IOUserAudioDriverUserClientProperties:
+              IOClass: IOUserUserClient
+              IOUserClass: IOUserAudioDriverUserClient
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.cypher.djmt1.audio

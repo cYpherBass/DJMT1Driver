@@ -6,8 +6,8 @@ DVS audio interfaces whose vendor drivers no longer load on current macOS:
 - **Pioneer DJM-T1** (implemented) — replaces Pioneer's last official driver
   (kext v1.2.0 from 2015, x86_64 only, not loadable on macOS 26 / Apple
   Silicon)
-- **Rane SL2** (planned) — replaces Rane's Core Audio driver (last supported
-  on macOS 10.15)
+- **Rane SL2** (implemented, awaiting device test) — replaces Rane's Core
+  Audio driver (last supported on macOS 10.15)
 
 ## Hardware contract (reverse-engineered & verified on the device)
 
@@ -66,8 +66,10 @@ approve the extension in System Settings → Privacy & Security.
 
 ## Status / open items
 
-- [x] Hardware protocol reverse-engineered and verified live
+- [x] Hardware protocol reverse-engineered and verified live (DJM-T1)
 - [x] Dext + installer app build (universal arm64/x86_64)
+- [x] Rane SL2 engine implemented (microframe pacing, implicit-feedback
+  cadence, no rate requests) — awaiting hardware for verification
 - [ ] File the entitlement request with Apple
 - [ ] First load test on the device (activation, matching, publishing to CoreAudio)
 - [ ] Streaming test: check input channels in DeckLab / Audio MIDI Setup
@@ -78,7 +80,12 @@ approve the extension in System Settings → Privacy & Security.
 - [ ] Volume/mute controls if the device supports them (the legacy driver
   reported none)
 
-## Rane SL2 (planned)
+## Rane SL2
+
+Implemented in `Driver/SL2Device.*` (second IOKit personality of the same
+dext; `DJMT1Driver` dispatches on the USB vendor ID and opens the second
+streaming interface for the SL2). Untested until a device is available —
+verify with `tools/sl2probe.m` first.
 
 Full hardware contract is already known — no reverse engineering needed. The
 SL2 (VID 0x1CC5, PID 0x0013) is a nearly textbook **USB Audio Class 2.0**
