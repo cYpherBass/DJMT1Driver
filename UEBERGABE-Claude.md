@@ -11,12 +11,15 @@ Repo: https://github.com/cYpherBass/DJMT1Driver (öffentlich).
 
 ## Stand
 
-**Der DJM-T1 läuft.** Am Gerät verifiziert (18.09.): Treiber lädt, das
-Gerät erscheint in CoreAudio als „Pioneer DJM-T1" (6 in / 6 out, 48 kHz,
-korrekter Name), und die isochronen USB-Transfers laufen durchgehend ohne
-Abbruch (Zero-Timestamp-Updates alle ~256 ms, minutenlang beobachtet, kein
-Timeout mehr). In aDJusted als Audio-Ausgang und Timecode-Eingang
-auswählbar; die Engine startet.
+**Der DJM-T1 läuft — mit echtem Ton.** Am Gerät verifiziert (18.09.):
+Treiber lädt, das Gerät erscheint in CoreAudio als „Pioneer DJM-T1" (6 in
+/ 6 out, 48 kHz, korrekter Name), die isochronen USB-Transfers laufen
+durchgehend ohne Abbruch (Zero-Timestamp-Updates alle ~256 ms, minutenlang
+beobachtet, kein Timeout mehr) — und der Inhaber hat in aDJusted
+tatsächlich Musikstücke durch den T1 abgespielt und gehört. MIDI (Play/
+Pause, Cue-Punkte) funktioniert ebenfalls, lief aber schon vorher
+unabhängig vom Audiotreiber (class-compliant USB-MIDI, kein eigener
+Treiber nötig).
 
 Drei echte Fehler haben das bis dahin verhindert, der Reihe nach gefunden
 und behoben (Commits `93fba6c`, `17ae619`):
@@ -56,16 +59,14 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
 
 ## Offen
 
-- **Tonqualität/Latenz/Kanalzuordnung real ungetestet.** Verifiziert ist nur,
-  dass die isochronen Transfers laufen und Zero-Timestamps regelmäßig
-  aktualisiert werden — nicht, ob die Audiodaten selbst (Pegel, Kanalzahl
-  in der Praxis, Sync bei längerer Laufzeit) stimmen. Nächster Schritt:
-  echten Ton durch aDJusted schicken und hören/messen.
 - **Rane-Entitlement fehlt weiterhin.** `idVendor 7365` ist bei Apple noch
   nicht genehmigt; `Driver/DJMT1AudioDriver.entitlements` enthält nur 2276.
 - **Rane SL2 komplett ungetestet** (siehe oben).
 - Zwei neue Tools liegen unangetastet und ungetestet im Arbeitsverzeichnis,
   noch nicht committet: `tools/midisniff.swift`, `tools/usbcfgdump.c`.
+- Noch nicht systematisch geprüft: Verhalten bei längerer Laufzeit
+  (Stunden), Sample-Rate-Wechsel, Schlaf/Aufwachen des Macs, mehrfaches
+  Ab-/Anstecken während des Betriebs.
 
 ## Gelernt (belegt, jeweils aus Fehler und Fix)
 
@@ -119,12 +120,10 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 
 ## Nächste Schritte
 
-1. Echten Ton durch den T1 schicken und Qualität/Latenz/Kanalzuordnung
-   prüfen (bisher nur Timing-Ebene verifiziert, nicht der Inhalt).
-2. Bei Apple `idVendor 7365` (Rane) nachbeantragen.
-3. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
+1. Bei Apple `idVendor 7365` (Rane) nachbeantragen.
+2. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
    vertrauen.
-4. `tools/midisniff.swift` und `tools/usbcfgdump.c` prüfen und ggf.
+3. `tools/midisniff.swift` und `tools/usbcfgdump.c` prüfen und ggf.
    committen.
 
 ## Rund um die Sitzung
