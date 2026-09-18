@@ -52,6 +52,13 @@ und behoben (Commits `93fba6c`, `17ae619`):
 **Version 1.0.2 (8)** ist installiert und aktiv
 (`systemextensionsctl list`: `[activated enabled]`).
 
+**Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-8.dmg`
+— App + Programme-Verknüpfung + kurze Anleitung, DMG selbst (nicht nur die
+App drin) signiert, notariert und gestapelt. Nur für Pioneer freigegeben,
+das steht auch in der Anleitung. Eine reine Zip-Fassung
+(`build/DJMT1Installer-1.0.2-8.zip`, gitignored) liegt zusätzlich lokal,
+aber nicht in Dropbox — auf Anweisung so gelassen.
+
 **Rane SL2:** Dieselben drei Fehler waren identisch in `SL2Device` und sind
 nach derselben Begründung ebenfalls behoben (Commit `17ae619`) — aber
 **ungetestet**, es liegt kein Rane-Gerät vor. Vor dem nächsten Kontakt mit
@@ -128,8 +135,10 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 
 ## Rund um die Sitzung
 
-- **GitHub:** unverändert seit der letzten Notiz — Token weg, `gh` nicht
-  angemeldet.
+- **GitHub:** Alle vier Commits dieser Sitzung sind gepusht (bis `1873d56`,
+  auf Anweisung). Der Push lief über den vorhandenen Credential-Helper von
+  `git` (`https://cYpherBass@github.com/...`), nicht über `gh` — `gh` ist
+  weiterhin nicht angemeldet, das Token dafür ist weiterhin weg.
 - **Git-Autor in diesem Repo:** `cYpherBass
   <93675118+cYpherBass@users.noreply.github.com>` (repo-lokal
   konfiguriert, unverändert).
