@@ -66,8 +66,16 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
 
 ## Offen
 
-- **Rane-Entitlement fehlt weiterhin.** `idVendor 7365` ist bei Apple noch
-  nicht genehmigt; `Driver/DJMT1AudioDriver.entitlements` enthält nur 2276.
+- **Rane-Entitlement fehlt weiterhin, aber in Bearbeitung.** `idVendor 7365`
+  ist bei Apple noch nicht genehmigt; `Driver/DJMT1AudioDriver.entitlements`
+  enthält nur 2276. Apple Developer Support (Case 102965305978, Kontakt
+  Martin) hat am 18.09. mitgeteilt: die zweite Vendor-ID lässt sich nicht
+  selbst im Certificates-Portal eintragen (bestätigt: bei „DriverKit USB
+  Transport - VendorID" gibt es dort keinen „Configure"-Knopf wie bei
+  anderen Capabilities), Apple muss sie manuell für Eskalation ans
+  Ops-Team ergänzen. Screenshot davon ist über Apples sicheren Upload-Link
+  hochgeladen, Antwort an Martin ist raus (18.09.) — wartet auf
+  Rückmeldung.
 - **Rane SL2 komplett ungetestet** (siehe oben).
 - Zwei neue Tools liegen unangetastet und ungetestet im Arbeitsverzeichnis,
   noch nicht committet: `tools/midisniff.swift`, `tools/usbcfgdump.c`.
