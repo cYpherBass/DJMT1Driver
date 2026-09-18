@@ -30,6 +30,7 @@ struct DJMT1Driver_IVars
     OSSharedPtr<IOUserAudioDevice>  device;
     OSSharedPtr<DJMT1Device>        pioneerDevice;   // same object as device,
                                                      // typed for OnIsoch*Complete
+    OSSharedPtr<SL2Device>          raneDevice;      // ditto, for the Rane path
 };
 
 bool DJMT1Driver::init()
@@ -48,6 +49,7 @@ void DJMT1Driver::free()
         ivars->secondInterface.reset();
         ivars->device.reset();
         ivars->pioneerDevice.reset();
+        ivars->raneDevice.reset();
     }
     IOSafeDeleteNULL(ivars, DJMT1Driver_IVars, 1);
     super::free();
@@ -217,7 +219,47 @@ kern_return_t IMPL(DJMT1Driver, Start)
             OSSafeReleaseNULL(audioDevice);
             goto fail_close;
         }
+
+        // Same fix as the Pioneer branch above: actions created here, on
+        // DJMT1Driver, not on SL2Device.
+        {
+            constexpr uint32_t kNumURBs = 4;  // must match SL2Device's kNumURBs
+            OSAction* inActions[kNumURBs] = {};
+            OSAction* outActions[kNumURBs] = {};
+            bool ok = true;
+            for (uint32_t i = 0; i < kNumURBs; i++) {
+                if (CreateActionHandleIsochInComplete(sizeof(uint32_t), &inActions[i])
+                    != kIOReturnSuccess) {
+                    LOG("SL2: CreateActionHandleIsochInComplete(%u) failed", i);
+                    ok = false;
+                    break;
+                }
+                *reinterpret_cast<uint32_t*>(inActions[i]->GetReference()) = i;
+
+                if (CreateActionHandleIsochOutComplete(sizeof(uint32_t), &outActions[i])
+                    != kIOReturnSuccess) {
+                    LOG("SL2: CreateActionHandleIsochOutComplete(%u) failed", i);
+                    ok = false;
+                    break;
+                }
+                *reinterpret_cast<uint32_t*>(outActions[i]->GetReference()) = i;
+            }
+            if (ok) {
+                ok = audioDevice->SetupIsochTransfers(inActions, outActions);
+            }
+            for (uint32_t i = 0; i < kNumURBs; i++) {
+                OSSafeReleaseNULL(inActions[i]);
+                OSSafeReleaseNULL(outActions[i]);
+            }
+            if (!ok) {
+                LOG("SL2: SetupIsochTransfers failed");
+                OSSafeReleaseNULL(audioDevice);
+                goto fail_close;
+            }
+        }
+
         ivars->device = OSSharedPtr<IOUserAudioDevice>(audioDevice, OSNoRetain);
+        ivars->raneDevice = OSSharedPtr<SL2Device>(audioDevice, OSRetain);
     } else {
         LOG("unexpected vendor id 0x%x", vid);
         goto fail_close;
@@ -252,6 +294,8 @@ void DJMT1Driver::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
 {
     if (ivars->pioneerDevice) {
         ivars->pioneerDevice->OnIsochInComplete(action, status);
+    } else if (ivars->raneDevice) {
+        ivars->raneDevice->OnIsochInComplete(action, status);
     }
 }
 
@@ -259,6 +303,8 @@ void DJMT1Driver::HandleIsochOutComplete_Impl(OSAction* action, IOReturn status)
 {
     if (ivars->pioneerDevice) {
         ivars->pioneerDevice->OnIsochOutComplete(action, status);
+    } else if (ivars->raneDevice) {
+        ivars->raneDevice->OnIsochOutComplete(action, status);
     }
 }
 
@@ -269,6 +315,7 @@ kern_return_t IMPL(DJMT1Driver, Stop)
         ivars->device.reset();
     }
     ivars->pioneerDevice.reset();
+    ivars->raneDevice.reset();
     if (ivars->secondInterface) {
         ivars->secondInterface->Close(this, 0);
         ivars->secondInterface.reset();

@@ -111,6 +111,21 @@ static bool AllocURB(URB& urb, uint32_t dataBytes, OSAction* action)
     return true;
 }
 
+bool SL2Device::init(IOUserAudioDriver* in_driver,
+                     bool in_supports_prewarming,
+                     OSString* in_device_uid,
+                     OSString* in_model_uid,
+                     OSString* in_manufacturer_uid,
+                     uint32_t in_zero_timestamp_period)
+{
+    if (!super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid,
+                      in_manufacturer_uid, in_zero_timestamp_period)) {
+        return false;
+    }
+    ivars = IONewZero(SL2Device_IVars, 1);
+    return ivars != nullptr;
+}
+
 bool SL2Device::initDevice(IOUserAudioDriver* in_driver,
                            IOUSBHostInterface* in_out_interface,
                            IOUSBHostInterface* in_in_interface,
@@ -122,6 +137,11 @@ bool SL2Device::initDevice(IOUserAudioDriver* in_driver,
               kRingFrames)) {
         return false;
     }
+
+    // See DJMT1Device::initDevice(): without this the CoreAudio display
+    // name stays empty, since SetName() in DJMT1Driver::Start_Impl() only
+    // names the driver service, not the audio device object.
+    SetName(in_model_uid);
 
     ivars->driver = OSSharedPtr(in_driver, OSRetain);
     ivars->outInterface = OSSharedPtr(in_out_interface, OSRetain);
@@ -198,32 +218,22 @@ bool SL2Device::initDevice(IOUserAudioDriver* in_driver,
     SetInputLatency(kSampleRate / 1000);
     SetOutputLatency(kSampleRate / 1000);
 
-    for (uint32_t i = 0; i < kNumURBs; i++) {
-        OSAction* action = nullptr;
-        if (CreateActionHandleIsochInComplete(sizeof(uint32_t), &action)
-            != kIOReturnSuccess) {
-            return false;
-        }
-        *reinterpret_cast<uint32_t*>(action->GetReference()) = i;
-        bool ok = AllocURB(ivars->inURBs[i], kMicroframesPerURB * kMaxPacketBytes, action);
-        action->release();
-        if (!ok) {
-            return false;
-        }
+    return true;
+}
 
-        action = nullptr;
-        if (CreateActionHandleIsochOutComplete(sizeof(uint32_t), &action)
-            != kIOReturnSuccess) {
+bool SL2Device::SetupIsochTransfers(OSAction** in_isoch_in_actions,
+                                    OSAction** in_isoch_out_actions)
+{
+    for (uint32_t i = 0; i < kNumURBs; i++) {
+        if (!AllocURB(ivars->inURBs[i], kMicroframesPerURB * kMaxPacketBytes,
+                      in_isoch_in_actions[i])) {
             return false;
         }
-        *reinterpret_cast<uint32_t*>(action->GetReference()) = i;
-        ok = AllocURB(ivars->outURBs[i], kMicroframesPerURB * kMaxPacketBytes, action);
-        action->release();
-        if (!ok) {
+        if (!AllocURB(ivars->outURBs[i], kMicroframesPerURB * kMaxPacketBytes,
+                      in_isoch_out_actions[i])) {
             return false;
         }
     }
-
     return true;
 }
 
@@ -402,7 +412,7 @@ kern_return_t SL2Device::StopIO(IOUserAudioStartStopFlags in_flags)
     return IOUserAudioDevice::StopIO(in_flags);
 }
 
-void SL2Device::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
+void SL2Device::OnIsochInComplete(OSAction* action, IOReturn status)
 {
     if (!ivars->ioRunning || status == kIOReturnAborted) {
         return;
@@ -448,7 +458,7 @@ void SL2Device::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
     }
 }
 
-void SL2Device::HandleIsochOutComplete_Impl(OSAction* action, IOReturn status)
+void SL2Device::OnIsochOutComplete(OSAction* action, IOReturn status)
 {
     if (!ivars->ioRunning || status == kIOReturnAborted) {
         return;

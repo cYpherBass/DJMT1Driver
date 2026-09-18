@@ -14,6 +14,13 @@
 class SL2Device : public IOUserAudioDevice
 {
 public:
+    virtual bool init(IOUserAudioDriver* in_driver,
+                      bool in_supports_prewarming,
+                      OSString* in_device_uid,
+                      OSString* in_model_uid,
+                      OSString* in_manufacturer_uid,
+                      uint32_t in_zero_timestamp_period) override;
+
     virtual bool initDevice(IOUserAudioDriver* in_driver,
                             IOUSBHostInterface* in_out_interface,
                             IOUSBHostInterface* in_in_interface,
@@ -25,10 +32,20 @@ public:
     virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
     virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
 
-    virtual void HandleIsochInComplete(OSAction* action,
-                                       IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
-    virtual void HandleIsochOutComplete(OSAction* action,
-                                        IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+    // Builds the URBs from completion actions the caller already created.
+    // The actions must be created on DJMT1Driver, not here -- see
+    // DJMT1Driver.iig and the identical fix already verified for
+    // DJMT1Device (2026-09-18): SL2Device is not an IOService either and
+    // has no dispatch queue DriverKit actually services, so
+    // CompleteAsyncIsochIO declared here would never have fired. Unverified
+    // against real Rane SL2 hardware -- fixed by the same reasoning, not
+    // by measurement.
+    virtual bool SetupIsochTransfers(OSAction** in_isoch_in_actions,
+                                     OSAction** in_isoch_out_actions) LOCALONLY;
+
+    // Called by DJMT1Driver's HandleIsochInComplete/OutComplete.
+    virtual void OnIsochInComplete(OSAction* action, IOReturn status) LOCALONLY;
+    virtual void OnIsochOutComplete(OSAction* action, IOReturn status) LOCALONLY;
 };
 
 #endif /* SL2Device_h */
