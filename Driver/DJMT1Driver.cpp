@@ -28,6 +28,8 @@ struct DJMT1Driver_IVars
     OSSharedPtr<IOUSBHostInterface> interface;      // matched interface
     OSSharedPtr<IOUSBHostInterface> secondInterface; // SL2 only: interface 2 (IN)
     OSSharedPtr<IOUserAudioDevice>  device;
+    OSSharedPtr<DJMT1Device>        pioneerDevice;   // same object as device,
+                                                     // typed for OnIsoch*Complete
 };
 
 bool DJMT1Driver::init()
@@ -45,6 +47,7 @@ void DJMT1Driver::free()
         ivars->interface.reset();
         ivars->secondInterface.reset();
         ivars->device.reset();
+        ivars->pioneerDevice.reset();
     }
     IOSafeDeleteNULL(ivars, DJMT1Driver_IVars, 1);
     super::free();
@@ -144,7 +147,47 @@ kern_return_t IMPL(DJMT1Driver, Start)
             OSSafeReleaseNULL(audioDevice);
             goto fail_close;
         }
+
+        // The completion actions must be created here, on DJMT1Driver (a
+        // real IOService), not on DJMT1Device -- see DJMT1Driver.iig.
+        {
+            constexpr uint32_t kNumURBs = 4;  // must match DJMT1Device's kNumURBs
+            OSAction* inActions[kNumURBs] = {};
+            OSAction* outActions[kNumURBs] = {};
+            bool ok = true;
+            for (uint32_t i = 0; i < kNumURBs; i++) {
+                if (CreateActionHandleIsochInComplete(sizeof(uint32_t), &inActions[i])
+                    != kIOReturnSuccess) {
+                    LOG("CreateActionHandleIsochInComplete(%u) failed", i);
+                    ok = false;
+                    break;
+                }
+                *reinterpret_cast<uint32_t*>(inActions[i]->GetReference()) = i;
+
+                if (CreateActionHandleIsochOutComplete(sizeof(uint32_t), &outActions[i])
+                    != kIOReturnSuccess) {
+                    LOG("CreateActionHandleIsochOutComplete(%u) failed", i);
+                    ok = false;
+                    break;
+                }
+                *reinterpret_cast<uint32_t*>(outActions[i]->GetReference()) = i;
+            }
+            if (ok) {
+                ok = audioDevice->SetupIsochTransfers(inActions, outActions);
+            }
+            for (uint32_t i = 0; i < kNumURBs; i++) {
+                OSSafeReleaseNULL(inActions[i]);
+                OSSafeReleaseNULL(outActions[i]);
+            }
+            if (!ok) {
+                LOG("SetupIsochTransfers failed");
+                OSSafeReleaseNULL(audioDevice);
+                goto fail_close;
+            }
+        }
+
         ivars->device = OSSharedPtr<IOUserAudioDevice>(audioDevice, OSNoRetain);
+        ivars->pioneerDevice = OSSharedPtr<DJMT1Device>(audioDevice, OSRetain);
     } else if (vid == kVendorRane) {
         // Matched on interface 1 (OUT stream); the IN stream is interface 2.
         IOUSBHostInterface* inInterface = CopySiblingInterface(device.get(), 2);
@@ -205,12 +248,27 @@ fail_close:
     return kIOReturnError;
 }
 
+void DJMT1Driver::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
+{
+    if (ivars->pioneerDevice) {
+        ivars->pioneerDevice->OnIsochInComplete(action, status);
+    }
+}
+
+void DJMT1Driver::HandleIsochOutComplete_Impl(OSAction* action, IOReturn status)
+{
+    if (ivars->pioneerDevice) {
+        ivars->pioneerDevice->OnIsochOutComplete(action, status);
+    }
+}
+
 kern_return_t IMPL(DJMT1Driver, Stop)
 {
     if (ivars->device) {
         RemoveObject(ivars->device.get());
         ivars->device.reset();
     }
+    ivars->pioneerDevice.reset();
     if (ivars->secondInterface) {
         ivars->secondInterface->Close(this, 0);
         ivars->secondInterface.reset();

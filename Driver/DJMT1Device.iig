@@ -13,6 +13,13 @@
 class DJMT1Device : public IOUserAudioDevice
 {
 public:
+    virtual bool init(IOUserAudioDriver* in_driver,
+                      bool in_supports_prewarming,
+                      OSString* in_device_uid,
+                      OSString* in_model_uid,
+                      OSString* in_manufacturer_uid,
+                      uint32_t in_zero_timestamp_period) override;
+
     virtual bool initDevice(IOUserAudioDriver* in_driver,
                             IOUSBHostInterface* in_interface,
                             OSString* in_device_uid,
@@ -23,10 +30,18 @@ public:
     virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
     virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) LOCALONLY;
 
-    virtual void HandleIsochInComplete(OSAction* action,
-                                       IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
-    virtual void HandleIsochOutComplete(OSAction* action,
-                                        IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+    // Builds the URBs from completion actions the caller already created.
+    // The actions must be created on DJMT1Driver, not here: DJMT1Device is
+    // not an IOService and has no dispatch queue DriverKit actually
+    // services, which is why CompleteAsyncIsochIO used to be declared here
+    // and never fired (see DJMT1Driver.iig).
+    virtual bool SetupIsochTransfers(OSAction** in_isoch_in_actions,
+                                     OSAction** in_isoch_out_actions) LOCALONLY;
+
+    // Called by DJMT1Driver's HandleIsochInComplete/OutComplete, which own
+    // the actual CompleteAsyncIsochIO completion actions.
+    virtual void OnIsochInComplete(OSAction* action, IOReturn status) LOCALONLY;
+    virtual void OnIsochOutComplete(OSAction* action, IOReturn status) LOCALONLY;
 };
 
 #endif /* DJMT1Device_h */

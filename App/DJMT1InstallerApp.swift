@@ -57,9 +57,60 @@ final class ExtensionManager: NSObject, ObservableObject, OSSystemExtensionReque
     }
 }
 
+/// Kommandozeilenmodus: `DJMT1Installer --activate` feuert dieselbe Anfrage
+/// wie der Knopf, schreibt das Ergebnis nach stdout und beendet sich. So laesst
+/// sich die Aktivierung ohne Klicken protokollieren.
+private final class CLIDelegate: NSObject, OSSystemExtensionRequestDelegate {
+    func request(_ request: OSSystemExtensionRequest,
+                 actionForReplacingExtension existing: OSSystemExtensionProperties,
+                 withExtension ext: OSSystemExtensionProperties)
+        -> OSSystemExtensionRequest.ReplacementAction {
+        print("replacing \(existing.bundleVersion) with \(ext.bundleVersion)")
+        return .replace
+    }
+
+    func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
+        print("NEEDS USER APPROVAL — Systemeinstellungen oeffnen")
+    }
+
+    func request(_ request: OSSystemExtensionRequest,
+                 didFinishWithResult result: OSSystemExtensionRequest.Result) {
+        print("RESULT: \(result.rawValue)")
+        exit(0)
+    }
+
+    func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+        let nsError = error as NSError
+        print("FAILED: domain=\(nsError.domain) code=\(nsError.code)")
+        print("  \(nsError.localizedDescription)")
+        print("  userInfo: \(nsError.userInfo)")
+        exit(1)
+    }
+}
+
+private func runCLI() -> Never {
+    let delegate = CLIDelegate()
+    print("bundle: \(Bundle.main.bundlePath)")
+    let request = OSSystemExtensionRequest.activationRequest(
+        forExtensionWithIdentifier: driverBundleID, queue: .main)
+    request.delegate = delegate
+    OSSystemExtensionManager.shared.submitRequest(request)
+    // Der Delegate beendet den Prozess; ohne Antwort nach 60 s selbst abbrechen.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+        print("TIMEOUT — keine Antwort")
+        exit(2)
+    }
+    RunLoop.main.run()
+    fatalError()
+}
+
 @main
 struct DJMT1InstallerApp: App {
     @StateObject private var manager = ExtensionManager()
+
+    init() {
+        if CommandLine.arguments.contains("--activate") { runCLI() }
+    }
 
     var body: some Scene {
         WindowGroup("DJM-T1 Treiber") {

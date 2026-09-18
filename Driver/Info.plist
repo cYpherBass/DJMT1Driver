@@ -12,10 +12,12 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>DJM-T1 Audio</string>
+	<key>CFBundlePackageType</key>
+	<string>DEXT</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.2</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>8</string>
 	<key>IOKitPersonalities</key>
 	<dict>
 		<key>DJMT1AudioDriver</key>
@@ -84,6 +86,6 @@
 		</dict>
 	</dict>
 	<key>OSBundleUsageDescription</key>
-	<string>Audio driver for the Pioneer DJM-T1 mixer</string>
+	<string>Audio driver for the Pioneer DJM-T1 and Rane SL2</string>
 </dict>
 </plist>

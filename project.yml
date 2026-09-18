@@ -6,8 +6,26 @@ options:
 settings:
   base:
     DEVELOPMENT_TEAM: DBCZNZ63SD
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: Automatic
+    # Bei gleicher Version ersetzt macOS eine bereits installierte Extension
+    # nicht -- jede neue Fassung braucht eine hoehere Nummer.
+    MARKETING_VERSION: "1.0.2"
+    CURRENT_PROJECT_VERSION: "8"
+  configs:
+    # Ein mit "Apple Development" signierter Dext laedt nur im Developer-Modus
+    # (auf Apple Silicon nur mit SIP-Aenderung). Release wird darum mit
+    # Developer ID signiert und notarisiert -- so laedt er auf jedem Mac.
+    Release:
+      OTHER_CODE_SIGN_FLAGS: "--timestamp"
+      # Ohne Hardened Runtime lehnt die Notarisierung die App ab.
+      ENABLE_HARDENED_RUNTIME: YES
+schemes:
+  DJMT1Installer:
+    build:
+      targets:
+        DJMT1Installer: all
+    archive:
+      config: Release
 targets:
   DJMT1Installer:
     type: application
@@ -40,7 +58,14 @@ targets:
       path: Driver/Info.plist
       properties:
         CFBundleName: DJM-T1 Audio
-        OSBundleUsageDescription: "Audio driver for the Pioneer DJM-T1 mixer"
+        # Ohne diesen Schluessel findet OSSystemExtensionManager das Bundle
+        # nicht: "Unable to find any matched extension with identifier".
+        CFBundlePackageType: DEXT
+        # Explizit, weil xcodegen sonst 1.0/1 festschreibt und macOS eine
+        # gleich nummerierte Extension nicht ersetzt.
+        CFBundleShortVersionString: "1.0.2"
+        CFBundleVersion: "8"
+        OSBundleUsageDescription: "Audio driver for the Pioneer DJM-T1 and Rane SL2"
         IOKitPersonalities:
           DJMT1AudioDriver:
             CFBundleIdentifier: de.cypher.djmt1.audio
@@ -75,6 +100,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.cypher.djmt1.audio
+        # Das Bundle muss wie seine Bundle-ID heissen, sonst findet
+        # OSSystemExtensionManager es nicht (Fehler 4, extensionNotFound).
+        PRODUCT_NAME: de.cypher.djmt1.audio
         CODE_SIGN_ENTITLEMENTS: Driver/DJMT1AudioDriver.entitlements
         CLANG_CXX_LANGUAGE_STANDARD: gnu++17
         SDKROOT: driverkit

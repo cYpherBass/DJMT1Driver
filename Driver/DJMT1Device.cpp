@@ -113,6 +113,21 @@ static void PrimeFrameList(URB& urb, uint32_t requestCount)
     }
 }
 
+bool DJMT1Device::init(IOUserAudioDriver* in_driver,
+                       bool in_supports_prewarming,
+                       OSString* in_device_uid,
+                       OSString* in_model_uid,
+                       OSString* in_manufacturer_uid,
+                       uint32_t in_zero_timestamp_period)
+{
+    if (!super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid,
+                      in_manufacturer_uid, in_zero_timestamp_period)) {
+        return false;
+    }
+    ivars = IONewZero(DJMT1Device_IVars, 1);
+    return ivars != nullptr;
+}
+
 bool DJMT1Device::initDevice(IOUserAudioDriver* in_driver,
                              IOUSBHostInterface* in_interface,
                              OSString* in_device_uid,
@@ -123,6 +138,11 @@ bool DJMT1Device::initDevice(IOUserAudioDriver* in_driver,
               kRingFrames)) {
         return false;
     }
+
+    // Ohne diesen Aufruf bleibt der CoreAudio-Anzeigename des Geraets leer;
+    // SetName() bei DJMT1Driver::Start_Impl() setzt nur den Namen des
+    // Treiber-Service, nicht des Audiogeraets selbst.
+    SetName(in_model_uid);
 
     ivars->driver = OSSharedPtr(in_driver, OSRetain);
     ivars->interface = OSSharedPtr(in_interface, OSRetain);
@@ -199,33 +219,22 @@ bool DJMT1Device::initDevice(IOUserAudioDriver* in_driver,
     SetInputLatency(kSamplesPerMs);
     SetOutputLatency(kSamplesPerMs);
 
-    // Per-direction transfer resources.
-    for (uint32_t i = 0; i < kNumURBs; i++) {
-        OSAction* action = nullptr;
-        if (CreateActionHandleIsochInComplete(sizeof(uint32_t), &action)
-            != kIOReturnSuccess) {
-            return false;
-        }
-        *reinterpret_cast<uint32_t*>(action->GetReference()) = i;
-        bool ok = AllocURB(ivars->inURBs[i], kUSBFramesPerURB * kInPacketSize, action);
-        action->release();
-        if (!ok) {
-            return false;
-        }
+    return true;
+}
 
-        action = nullptr;
-        if (CreateActionHandleIsochOutComplete(sizeof(uint32_t), &action)
-            != kIOReturnSuccess) {
+bool DJMT1Device::SetupIsochTransfers(OSAction** in_isoch_in_actions,
+                                      OSAction** in_isoch_out_actions)
+{
+    for (uint32_t i = 0; i < kNumURBs; i++) {
+        if (!AllocURB(ivars->inURBs[i], kUSBFramesPerURB * kInPacketSize,
+                      in_isoch_in_actions[i])) {
             return false;
         }
-        *reinterpret_cast<uint32_t*>(action->GetReference()) = i;
-        ok = AllocURB(ivars->outURBs[i], kUSBFramesPerURB * kBytesPerMs, action);
-        action->release();
-        if (!ok) {
+        if (!AllocURB(ivars->outURBs[i], kUSBFramesPerURB * kBytesPerMs,
+                      in_isoch_out_actions[i])) {
             return false;
         }
     }
-
     return true;
 }
 
@@ -304,11 +313,13 @@ kern_return_t DJMT1Device::StartIO(IOUserAudioStartStopFlags in_flags)
 
     {
         uint64_t frameNumber = 0;
-        uint64_t frameTime = 0;
-        intf->GetFrameNumber(&frameNumber, &frameTime);
-        // Leave a small scheduling lead before the first transfer.
-        ivars->nextInFrameNumber = frameNumber + 4;
-        ivars->nextOutFrameNumber = frameNumber + 4;
+        intf->GetFrameNumber(&frameNumber, nullptr);
+        // A lead of only 4 frames (4 ms) once looked suspicious while the
+        // real bug (see DJMT1Driver.iig) was still masking every isoch
+        // completion; kept at 50 since that is the value verified working
+        // end to end once the completions actually arrived.
+        ivars->nextInFrameNumber = frameNumber + 50;
+        ivars->nextOutFrameNumber = frameNumber + 50;
     }
 
     ivars->ioRunning = true;
@@ -371,7 +382,7 @@ kern_return_t DJMT1Device::StopIO(IOUserAudioStartStopFlags in_flags)
     return IOUserAudioDevice::StopIO(in_flags);
 }
 
-void DJMT1Device::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
+void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
 {
     if (!ivars->ioRunning || status == kIOReturnAborted) {
         return;
@@ -417,7 +428,7 @@ void DJMT1Device::HandleIsochInComplete_Impl(OSAction* action, IOReturn status)
     }
 }
 
-void DJMT1Device::HandleIsochOutComplete_Impl(OSAction* action, IOReturn status)
+void DJMT1Device::OnIsochOutComplete(OSAction* action, IOReturn status)
 {
     if (!ivars->ioRunning || status == kIOReturnAborted) {
         return;

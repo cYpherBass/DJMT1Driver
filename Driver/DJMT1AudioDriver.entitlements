@@ -6,19 +6,14 @@
 	<true/>
 	<key>com.apple.developer.driverkit.family.audio</key>
 	<true/>
+	<!-- Must match the provisioning profile exactly, or the kernel refuses to
+	     launch the dext ("load code signature error 4"). Apple currently
+	     authorizes Pioneer (2276) only; Rane (7365) is added once granted. -->
 	<key>com.apple.developer.driverkit.transport.usb</key>
 	<array>
 		<dict>
 			<key>idVendor</key>
 			<integer>2276</integer>
-			<key>idProduct</key>
-			<integer>350</integer>
-		</dict>
-		<dict>
-			<key>idVendor</key>
-			<integer>7365</integer>
-			<key>idProduct</key>
-			<integer>19</integer>
 		</dict>
 	</array>
 </dict>

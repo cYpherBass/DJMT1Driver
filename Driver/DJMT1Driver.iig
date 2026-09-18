@@ -8,6 +8,7 @@
 
 #include <DriverKit/IOService.iig>
 #include <AudioDriverKit/IOUserAudioDriver.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
 
 class DJMT1Driver : public IOUserAudioDriver
 {
@@ -16,6 +17,20 @@ public:
     virtual void free() override;
     virtual kern_return_t Start(IOService* provider) override;
     virtual kern_return_t Stop(IOService* provider) override;
+
+    // Owned here, not on DJMT1Device: only an IOService (DJMT1Driver) has a
+    // dispatch queue DriverKit actually services for OSAction completions.
+    // Confirmed by measurement (2026-09-18): with these declared on
+    // DJMT1Device, IsochIO submissions always succeeded but
+    // CompleteAsyncIsochIO never fired, in ten seconds of real traffic,
+    // regardless of scheduling lead -- while a plain userspace probe
+    // (tools/t1probe.m) using the synchronous isoch API read real audio
+    // data from the same pipe without issue, ruling out the USB/hardware
+    // layer.
+    virtual void HandleIsochInComplete(OSAction* action,
+                                       IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
+    virtual void HandleIsochOutComplete(OSAction* action,
+                                        IOReturn status) TYPE(IOUSBHostPipe::CompleteAsyncIsochIO);
 };
 
 #endif /* DJMT1Driver_h */
