@@ -1,7 +1,7 @@
-# Übergabe: DJM-T1 / Rane-SL2-Treiber (Stand 18.09.2026)
+# Stand: DJM-T1 / Rane-SL2-Treiber (21.09.2026)
 
-Übergabenotiz für eine neue Claude-Sitzung. Enthält nur Belegtes; offene
-Punkte sind als offen markiert.
+Laufende Stand-Notiz, liest jede Claude-Sitzung in diesem Ordner zuerst.
+Enthält nur Belegtes; offene Punkte sind als offen markiert.
 
 ## Ziel
 
@@ -74,8 +74,10 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
   Transport - VendorID" gibt es dort keinen „Configure"-Knopf wie bei
   anderen Capabilities), Apple muss sie manuell für Eskalation ans
   Ops-Team ergänzen. Screenshot davon ist über Apples sicheren Upload-Link
-  hochgeladen, Antwort an Martin ist raus (18.09.) — wartet auf
-  Rückmeldung.
+  hochgeladen, Antwort an Martin ist raus (18.09.). Update 21.09.: Apple
+  bestätigt den Auftrag korrekt („Driver 0x1CC5 (Rane)" zur „DriverKit USB
+  Transport - VendorID"-Capability hinzufügen), prüft noch intern — noch
+  keine Zusage, noch nicht erledigt.
 - **Rane SL2 komplett ungetestet** (siehe oben).
 - Zwei neue Tools liegen unangetastet und ungetestet im Arbeitsverzeichnis,
   noch nicht committet: `tools/midisniff.swift`, `tools/usbcfgdump.c`.
