@@ -49,7 +49,8 @@ und behoben (Commits `93fba6c`, `17ae619`):
    `DJMT1Device::OnIsochInComplete`/`OnIsochOutComplete` per normalem
    Methodenaufruf weiter.
 
-**Version 1.0.2 (15)** ist installiert und aktiv
+**Version 1.0.2 (17)** ist die aktuelle Fassung im Repo (auf dem
+Entwicklungs-Mac lief zuletzt v16 aus dem verworfenen Versuch)
 (`systemextensionsctl list`: `[activated enabled]`).
 
 ### Seit 21.09. (alles am Gerät gemessen, macOS 27)
@@ -91,12 +92,23 @@ und behoben (Commits `93fba6c`, `17ae619`):
 - Ein „langsamer Tune" war kein Treiberfehler, aDJusted stand auf 45 U/min
   bei einer 33er Platte.
 
-**Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-8.dmg`
-— App + Programme-Verknüpfung + kurze Anleitung, DMG selbst (nicht nur die
-App drin) signiert, notariert und gestapelt. Nur für Pioneer freigegeben,
-das steht auch in der Anleitung. Eine reine Zip-Fassung
-(`build/DJMT1Installer-1.0.2-8.zip`, gitignored) liegt zusätzlich lokal,
-aber nicht in Dropbox — auf Anweisung so gelassen.
+**Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-17.dmg`
+(04.10.) — App + Programme-Verknüpfung + `Anleitung.txt`, DMG selbst
+signiert, notariert und gestapelt; Treiberparameter wie v15 (Version 17,
+weil v16 schon vergeben war). App und Dext sind Universal-Binaries
+(`x86_64 arm64`), gebaut für macOS 14+. Der Tester nutzt Traktor auf einem
+Intel-Mac (aDJusted läuft dort nicht), darum steht in der Anleitung nichts
+zu aDJusted; Intel ist **noch nie ausprobiert**, das sagt die Anleitung
+offen. Nur für Pioneer freigegeben. Die alte Fassung (8) ist aus Dropbox
+gelöscht. Gebaute DMG/ZIPs liegen in `build/` (gitignored).
+
+**v16-Versuch verworfen (04.10.):** USB-Blöcke 1 ms, 5 im Voraus, Safety
+Aus 7 ms / Ein 4 ms. Gemessener App-Round-Trip war identisch zu v15
+(128 Frames: 21,3 ms bei beiden); die Gerätezeit-Differenz stieg um genau
+die eingesparten Millisekunden. Die Untergrenze von rund 16 ms (plus zwei
+Puffer) kommt also nicht aus den Safety-Offsets, die Quelle ist ungeklärt.
+Nicht committet, v15-Parameter bleiben. Aufklären ginge nur mit
+Variantenbauten (z. B. nur `kOutAhead` ändern).
 
 **Rane SL2:** Dieselben drei Fehler waren identisch in `SL2Device` und sind
 nach derselben Begründung ebenfalls behoben (Commit `17ae619`) — aber
@@ -180,15 +192,15 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 `-exportArchive` mit Developer-ID → `notarytool submit --wait` →
 `stapler staple` → nach `/Applications` kopieren →
 `DJMT1Installer --activate`. Jede neue Fassung braucht eine höhere
-`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 15).
+`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 17).
 
 ## Nächste Schritte
 
 1. Prüfen, ob noch ein Restzittern bleibt (Hörtest in aDJusted, ggf.
    kleinerer Puffer); SL2Device auf dasselbe Zeitmodell bringen, sobald
    ein Gerät da ist.
-2. Neue Tester-DMG (v15) mit Hinweisen: CH1/CH2-Schalter auf USB,
-   33/45 in aDJusted passend zur Platte.
+2. Rückmeldung des Testers (Traktor, Intel-Mac) zur DMG 1.0.2 (17)
+   abwarten.
 3. Bei Apple `idVendor 7365` (Rane) weiter nachhalten.
 4. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
    vertrauen.
