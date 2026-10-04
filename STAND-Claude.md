@@ -49,8 +49,7 @@ und behoben (Commits `93fba6c`, `17ae619`):
    `DJMT1Device::OnIsochInComplete`/`OnIsochOutComplete` per normalem
    Methodenaufruf weiter.
 
-**Version 1.0.2 (17)** ist die aktuelle Fassung im Repo (auf dem
-Entwicklungs-Mac lief zuletzt v16 aus dem verworfenen Versuch)
+**Version 1.0.2 (18)** ist installiert und aktiv und die aktuelle Fassung im Repo
 (`systemextensionsctl list`: `[activated enabled]`).
 
 ### Seit 21.09. (alles am Gerät gemessen, macOS 27)
@@ -101,6 +100,32 @@ Intel-Mac (aDJusted läuft dort nicht), darum steht in der Anleitung nichts
 zu aDJusted; Intel ist **noch nie ausprobiert**, das sagt die Anleitung
 offen. Nur für Pioneer freigegeben. Die alte Fassung (8) ist aus Dropbox
 gelöscht. Gebaute DMG/ZIPs liegen in `build/` (gitignored).
+
+**Strom-Abbruch behoben (v18, 04.10.).** Mit v17 aus der DMG fiel um
+17:54:35 der Datenstrom aus: bei einem kurzen Aussetzer des Dext
+(Systemlast) lag die nächste Frame-Nummer in der Vergangenheit, jeder
+Neuversuch von `IsochIO` schlug mit `kIOReturnIsoTooOld` (`0xe00002ee`)
+fehl, der Treiber setzte die Frame-Nummer nie neu, der Strom blieb tot bis
+zum Neuanstecken. aDJusted zeigte weiter ein eingefrorenes Signal (CoreAudio
+las den Ring zyklisch weiter, Platte wirkungslos), im Mixer kam nichts an.
+Behoben: Bei `IsoTooOld` wird auf aktuellen USB-Frame + Vorlauf neu
+angesetzt (bis 4 Versuche, Log `input/output stream late … re-anchored`),
+verlorene Eingangs-Frames werden als Stille eingetragen, 6 statt 4 Blöcke
+im Voraus (10 ms statt 6 ms Reserve). Kosten: Round-Trip bei 128 Frames
+26,7 ms statt 21,3 ms, bei 512 Frames 42,7 ms. Geprüft: Installation, Routing
+`0x0`, Timecode 1001 Hz/87 %, CPU-Last (2× Kerne) ohne Auffälligkeit. Der
+Wiederanlauf selbst wurde noch **nie ausgelöst**, nur kompiliert. Zwei
+Dinge, die ich über die Fehlercodes gelernt habe: `0xe00002eb` =
+Aborted/`0xe00002d8` = NotReady beim Abziehen sind normal, `0xe00002ee`
+im laufenden Betrieb ist der Fehlerfall. Der Tester hat v17 per Mail
+bekommen (hat den Fehler).
+
+**Kopfhörer-Cue am T1:** Mit dem Treiber hat es nichts zu tun. Zuerst
+schien Cue nicht zu gehen (Tonprobe über `t1tone`: Ton kam an CH1 und Master
+an, im Kopfhörer nicht), die Ursache war ein verwechselter Pegelregler am
+Mixer, danach ging Cue. aDJusted im Modus „Extern“ überlässt Cue dem
+Hardware-Mixer (laut seinem Hilfetext), Pioneers Setup-Software hat keine
+Cue-/Kopfhörer-Einstellung.
 
 **v16-Versuch verworfen (04.10.):** USB-Blöcke 1 ms, 5 im Voraus, Safety
 Aus 7 ms / Ein 4 ms. Gemessener App-Round-Trip war identisch zu v15
@@ -181,6 +206,8 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
   den Pioneer-Requests (`status`, `set <Paar> <Option>`, `tc-phono`).
 - `t1rtt.swift`: Round-Trip-Latenz über den Mixer (Ton auf CH1 aus, über
   USB 5/6 wieder ein); gibt hörbare Töne aus.
+- `t1tone.swift`: Dauerton auf einem Ausgangspaar (0–2) zum Abhören, was
+  der Mixer damit macht.
 - `usbcfgdump.c`, `sl2_diag.sh`: SL2-Vorbereitung für den Testtag.
 - `midisniff.swift`: unverändert, ungeprüft.
 
@@ -192,14 +219,14 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 `-exportArchive` mit Developer-ID → `notarytool submit --wait` →
 `stapler staple` → nach `/Applications` kopieren →
 `DJMT1Installer --activate`. Jede neue Fassung braucht eine höhere
-`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 17).
+`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 18).
 
 ## Nächste Schritte
 
 1. Prüfen, ob noch ein Restzittern bleibt (Hörtest in aDJusted, ggf.
    kleinerer Puffer); SL2Device auf dasselbe Zeitmodell bringen, sobald
    ein Gerät da ist.
-2. Rückmeldung des Testers (Traktor, Intel-Mac) zur DMG 1.0.2 (17)
+2. Tester (Traktor, Intel-Mac) auf DMG 1.0.2 (18) umstellen; Rückmeldung
    abwarten.
 3. Bei Apple `idVendor 7365` (Rane) weiter nachhalten.
 4. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code

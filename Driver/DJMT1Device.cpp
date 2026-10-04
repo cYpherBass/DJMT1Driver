@@ -30,7 +30,7 @@ constexpr uint32_t kSamplesPerMs    = 48;
 constexpr uint32_t kBytesPerMs      = kSamplesPerMs * kBytesPerFrame;  // 864
 constexpr uint32_t kInPacketSize    = 1024; // wMaxPacketSize of EP 0x82
 constexpr uint32_t kUSBFramesPerURB = 2;    // 2 ms per transaction
-constexpr uint32_t kNumURBs         = 4;    // per direction, in flight; keep in
+constexpr uint32_t kNumURBs         = 6;    // per direction, in flight; keep in
                                             // step with DJMT1Driver.cpp
 constexpr uint32_t kRingFrames      = kSamplesPerMs * 256;           // 12288 (256 ms)
 constexpr uint32_t kRingBytes       = kRingFrames * kBytesPerFrame;
@@ -52,6 +52,13 @@ constexpr uint32_t kOutAhead         = (kNumURBs - 1) * kUSBFramesPerURB * kSamp
 constexpr uint32_t kOutSafetyOffset  = kOutAhead + 4 * kSamplesPerMs;
 constexpr uint32_t kInSafetyOffset   = (kUSBFramesPerURB + 4) * kSamplesPerMs;
 constexpr uint32_t kOutResyncFrames  = 2 * kUSBFramesPerURB * kSamplesPerMs;
+// A completion that is handled later than the queued URBs cover (a stalled
+// dext thread under system load) leaves the next frame number in the past:
+// IsochIO then fails with kIOReturnIsoTooOld on every call and the stream
+// stays dead. The frame numbers are re-anchored to the current USB frame
+// plus this lead instead.
+constexpr uint32_t kResubmitLead     = 4;
+constexpr uint32_t kResubmitTries    = 4;
 constexpr uint32_t kStatURBs         = 1000 / kUSBFramesPerURB;  // one log window per second
 
 struct URB {
@@ -457,6 +464,22 @@ kern_return_t DJMT1Device::StopIO(IOUserAudioStartStopFlags in_flags)
     return IOUserAudioDevice::StopIO(in_flags);
 }
 
+// Writes silence into the input ring and advances the device clock, so a gap
+// in the capture does not shift the timeline.
+static void AppendInputSilence(DJMT1Device_IVars* iv, uint64_t frames)
+{
+    while (frames > 0) {
+        uint64_t pos = iv->inSampleCount % kRingFrames;
+        uint32_t run = kRingFrames - static_cast<uint32_t>(pos);
+        if (run > frames) {
+            run = static_cast<uint32_t>(frames);
+        }
+        memset(iv->inRingPtr + pos * kBytesPerFrame, 0, run * kBytesPerFrame);
+        iv->inSampleCount += run;
+        frames -= run;
+    }
+}
+
 void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
 {
     if (!ivars->ioRunning || status == kIOReturnAborted) {
@@ -488,7 +511,9 @@ void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
                 ivars->inStatFirstBad = frame.status;
             }
         }
-        if (samples > 0) {
+        if (frame.status != kIOReturnSuccess) {
+            AppendInputSilence(ivars, kSamplesPerMs);
+        } else if (samples > 0) {
             uint64_t pos = ivars->inSampleCount % kRingFrames;
             uint32_t untilWrap = kRingFrames - static_cast<uint32_t>(pos);
             uint8_t* src = urb.data_ptr + f * kInPacketSize;
@@ -531,6 +556,18 @@ void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
     kern_return_t ret = ivars->inPipe->IsochIO(urb.data.get(), urb.frameList.get(),
                                                ivars->nextInFrameNumber,
                                                urb.completion.get());
+    for (uint32_t attempt = 0; ret == kIOReturnIsoTooOld && attempt < kResubmitTries; attempt++) {
+        uint64_t now = 0;
+        ivars->interface->GetFrameNumber(&now, nullptr);
+        uint64_t target = now + kResubmitLead * (attempt + 1);
+        uint64_t lost = target > ivars->nextInFrameNumber ? target - ivars->nextInFrameNumber : 0;
+        AppendInputSilence(ivars, lost * kSamplesPerMs);
+        LOG("input stream late by %llu ms, re-anchored to frame %llu", lost, target);
+        ivars->nextInFrameNumber = target;
+        PrimeFrameList(urb, kInPacketSize);
+        ret = ivars->inPipe->IsochIO(urb.data.get(), urb.frameList.get(),
+                                     ivars->nextInFrameNumber, urb.completion.get());
+    }
     if (ret != kIOReturnSuccess) {
         LOG("IsochIO(in resubmit) failed: 0x%x", ret);
     } else {
@@ -602,6 +639,16 @@ void DJMT1Device::OnIsochOutComplete(OSAction* action, IOReturn status)
     kern_return_t ret = ivars->outPipe->IsochIO(urb.data.get(), urb.frameList.get(),
                                                 ivars->nextOutFrameNumber,
                                                 urb.completion.get());
+    for (uint32_t attempt = 0; ret == kIOReturnIsoTooOld && attempt < kResubmitTries; attempt++) {
+        uint64_t now = 0;
+        ivars->interface->GetFrameNumber(&now, nullptr);
+        uint64_t target = now + kResubmitLead * (attempt + 1);
+        LOG("output stream late, re-anchored to frame %llu", target);
+        ivars->nextOutFrameNumber = target;
+        PrimeFrameList(urb, kBytesPerMs);
+        ret = ivars->outPipe->IsochIO(urb.data.get(), urb.frameList.get(),
+                                      ivars->nextOutFrameNumber, urb.completion.get());
+    }
     if (ret != kIOReturnSuccess) {
         LOG("IsochIO(out resubmit) failed: 0x%x", ret);
     } else {

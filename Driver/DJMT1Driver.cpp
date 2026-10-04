@@ -185,7 +185,7 @@ kern_return_t IMPL(DJMT1Driver, Start)
         // The completion actions must be created here, on DJMT1Driver (a
         // real IOService), not on DJMT1Device -- see DJMT1Driver.iig.
         {
-            constexpr uint32_t kNumURBs = 4;  // must match DJMT1Device's kNumURBs
+            constexpr uint32_t kNumURBs = 6;  // must match DJMT1Device's kNumURBs
             OSAction* inActions[kNumURBs] = {};
             OSAction* outActions[kNumURBs] = {};
             bool ok = true;
