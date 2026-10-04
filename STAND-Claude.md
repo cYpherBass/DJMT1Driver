@@ -91,15 +91,14 @@ und behoben (Commits `93fba6c`, `17ae619`):
 - Ein „langsamer Tune" war kein Treiberfehler, aDJusted stand auf 45 U/min
   bei einer 33er Platte.
 
-**Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-17.dmg`
+**Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-18.dmg`
 (04.10.) — App + Programme-Verknüpfung + `Anleitung.txt`, DMG selbst
-signiert, notariert und gestapelt; Treiberparameter wie v15 (Version 17,
-weil v16 schon vergeben war). App und Dext sind Universal-Binaries
+signiert, notariert und gestapelt, Version 18 (mit Wiederanlauf, siehe
+unten; v17 und älter sind aus Dropbox gelöscht). App und Dext sind Universal-Binaries
 (`x86_64 arm64`), gebaut für macOS 14+. Der Tester nutzt Traktor auf einem
 Intel-Mac (aDJusted läuft dort nicht), darum steht in der Anleitung nichts
 zu aDJusted; Intel ist **noch nie ausprobiert**, das sagt die Anleitung
-offen. Nur für Pioneer freigegeben. Die alte Fassung (8) ist aus Dropbox
-gelöscht. Gebaute DMG/ZIPs liegen in `build/` (gitignored).
+offen. Nur für Pioneer freigegeben. Gebaute DMG/ZIPs liegen in `build/` (gitignored).
 
 **Strom-Abbruch behoben (v18, 04.10.).** Mit v17 aus der DMG fiel um
 17:54:35 der Datenstrom aus: bei einem kurzen Aussetzer des Dext
