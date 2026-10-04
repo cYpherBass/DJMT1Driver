@@ -29,13 +29,30 @@ constexpr uint32_t kBytesPerFrame   = kChannels * kBytesPerSample;  // 18
 constexpr uint32_t kSamplesPerMs    = 48;
 constexpr uint32_t kBytesPerMs      = kSamplesPerMs * kBytesPerFrame;  // 864
 constexpr uint32_t kInPacketSize    = 1024; // wMaxPacketSize of EP 0x82
-constexpr uint32_t kUSBFramesPerURB = 8;    // 8 ms per transaction
-constexpr uint32_t kNumURBs         = 4;    // per direction, in flight
+constexpr uint32_t kUSBFramesPerURB = 2;    // 2 ms per transaction
+constexpr uint32_t kNumURBs         = 4;    // per direction, in flight; keep in
+                                            // step with DJMT1Driver.cpp
 constexpr uint32_t kRingFrames      = kSamplesPerMs * 256;           // 12288 (256 ms)
 constexpr uint32_t kRingBytes       = kRingFrames * kBytesPerFrame;
 constexpr uint8_t  kEndpointOut     = 0x01;
 constexpr uint8_t  kEndpointIn      = 0x82;
-constexpr uint32_t kSafetyOffset    = 3 * kSamplesPerMs;
+
+// Timing model. The input stream is the device clock: inSampleCount is the
+// device time at which the last captured sample was taken. A refilled output
+// URB plays after the other kNumURBs - 1 queued ones, so its first sample
+// goes out kOutAhead frames after "now" and has to be read from the ring at
+// that device time. CoreAudio only writes the ring from (device time + output
+// safety offset) on, so everything before that is final: the safety offset
+// has to cover kOutAhead plus scheduling jitter. Reading further ahead than
+// CoreAudio has written returns the previous lap of the ring (256 ms old),
+// which is what the first versions did.
+// Input data arrives in whole URBs and the completion is delivered a little
+// after the URB ends, so the input safety offset covers one URB plus that.
+constexpr uint32_t kOutAhead         = (kNumURBs - 1) * kUSBFramesPerURB * kSamplesPerMs;
+constexpr uint32_t kOutSafetyOffset  = kOutAhead + 4 * kSamplesPerMs;
+constexpr uint32_t kInSafetyOffset   = (kUSBFramesPerURB + 4) * kSamplesPerMs;
+constexpr uint32_t kOutResyncFrames  = 2 * kUSBFramesPerURB * kSamplesPerMs;
+constexpr uint32_t kStatURBs         = 1000 / kUSBFramesPerURB;  // one log window per second
 
 struct URB {
     OSSharedPtr<IOBufferMemoryDescriptor> data;
@@ -241,8 +258,8 @@ bool DJMT1Device::initDevice(IOUserAudioDriver* in_driver,
         return false;
     }
 
-    SetInputSafetyOffset(kSafetyOffset);
-    SetOutputSafetyOffset(kSafetyOffset);
+    SetInputSafetyOffset(kInSafetyOffset);
+    SetOutputSafetyOffset(kOutSafetyOffset);
     SetInputLatency(kSamplesPerMs);
     SetOutputLatency(kSamplesPerMs);
 
@@ -494,7 +511,7 @@ void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
         }
     }
 
-    if (ivars->inStatURBs >= 125) {
+    if (ivars->inStatURBs >= kStatURBs) {
         ivars->inStatBeats++;
         bool odd = ivars->inStatBad > 0 || ivars->inStatURBBad > 0 || ivars->inStatPeak == 0;
         if (odd || ivars->inStatBeats % 10 == 0) {
@@ -542,7 +559,7 @@ void DJMT1Device::OnIsochOutComplete(OSAction* action, IOReturn status)
             }
         }
     }
-    if (ivars->outStatURBs >= 125) {
+    if (ivars->outStatURBs >= kStatURBs) {
         ivars->outStatBeats++;
         if (ivars->outStatBad > 0 || ivars->outStatURBBad > 0 || ivars->outStatBeats % 10 == 0) {
             LOG("out stats: urbs=%u urbBad=%u (last 0x%x) framesBad=%u (first 0x%x) "
@@ -555,7 +572,17 @@ void DJMT1Device::OnIsochOutComplete(OSAction* action, IOReturn status)
         ivars->outStatFirstBad = ivars->outStatLastURBStatus = 0;
     }
 
-    // Refill this URB from the output ring at the current play position.
+    // Refill this URB from the output ring. The read position follows the
+    // device clock; it only moves if the two have drifted apart by more than
+    // the phase difference between input and output completions.
+    int64_t wanted = static_cast<int64_t>(ivars->inSampleCount) + kOutAhead;
+    int64_t diff = wanted - static_cast<int64_t>(ivars->outSampleCount);
+    if (diff > static_cast<int64_t>(kOutResyncFrames) ||
+        diff < -static_cast<int64_t>(kOutResyncFrames)) {
+        LOG("out position resync: %lld frames (in %llu, out %llu)", diff,
+            ivars->inSampleCount, ivars->outSampleCount);
+        ivars->outSampleCount = static_cast<uint64_t>(wanted);
+    }
     for (uint32_t f = 0; f < kUSBFramesPerURB; f++) {
         uint64_t pos = ivars->outSampleCount % kRingFrames;
         uint32_t untilWrap = kRingFrames - static_cast<uint32_t>(pos);

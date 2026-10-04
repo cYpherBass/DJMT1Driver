@@ -49,7 +49,7 @@ und behoben (Commits `93fba6c`, `17ae619`):
    `DJMT1Device::OnIsochInComplete`/`OnIsochOutComplete` per normalem
    Methodenaufruf weiter.
 
-**Version 1.0.2 (14)** ist installiert und aktiv
+**Version 1.0.2 (15)** ist installiert und aktiv
 (`systemextensionsctl list`: `[activated enabled]`).
 
 ### Seit 21.09. (alles am Gerät gemessen, macOS 27)
@@ -118,10 +118,6 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
   Transport - VendorID"-Capability hinzufügen), prüft noch intern — noch
   keine Zusage, noch nicht erledigt.
 - **Rane SL2 komplett ungetestet** (siehe oben).
-- **Latenz/Zittern (Meldung vom 04.10.):** Der Inhaber hört in aDJusted bei
-  DVS eine „extreme" Latenz und ein leichtes Zittern im Tune. Noch nicht
-  gemessen; Messung mit `tools/t1rtt.swift` geplant, vor jeder
-  Parameteränderung (Safety-Offset 3 ms, 4×8-ms-URBs, 50 ms Startvorlauf).
 - **Seltener Signalausfall** ca. 90 s nach Engine-Start (digitale Nullen
   auf CoreAudio-Ebene) trat vor v13 auf; mit v13/v14 und Statistik-Logs
   nicht reproduziert, weiter beobachten.
@@ -184,12 +180,14 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 `-exportArchive` mit Developer-ID → `notarytool submit --wait` →
 `stapler staple` → nach `/Applications` kopieren →
 `DJMT1Installer --activate`. Jede neue Fassung braucht eine höhere
-`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 14).
+`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 15).
 
 ## Nächste Schritte
 
-1. Latenz und Zittern messen (`t1rtt`), erst danach etwas ändern.
-2. Neue Tester-DMG (v14) mit Hinweisen: CH1/CH2-Schalter auf USB,
+1. Prüfen, ob noch ein Restzittern bleibt (Hörtest in aDJusted, ggf.
+   kleinerer Puffer); SL2Device auf dasselbe Zeitmodell bringen, sobald
+   ein Gerät da ist.
+2. Neue Tester-DMG (v15) mit Hinweisen: CH1/CH2-Schalter auf USB,
    33/45 in aDJusted passend zur Platte.
 3. Bei Apple `idVendor 7365` (Rane) weiter nachhalten.
 4. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
