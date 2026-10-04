@@ -1,4 +1,4 @@
-# Stand: DJM-T1 / Rane-SL2-Treiber (21.09.2026)
+# Stand: DJM-T1 / Rane-SL2-Treiber (04.10.2026)
 
 Laufende Stand-Notiz, liest jede Claude-Sitzung in diesem Ordner zuerst.
 Enthält nur Belegtes; offene Punkte sind als offen markiert.
@@ -49,8 +49,47 @@ und behoben (Commits `93fba6c`, `17ae619`):
    `DJMT1Device::OnIsochInComplete`/`OnIsochOutComplete` per normalem
    Methodenaufruf weiter.
 
-**Version 1.0.2 (8)** ist installiert und aktiv
+**Version 1.0.2 (14)** ist installiert und aktiv
 (`systemextensionsctl list`: `[activated enabled]`).
+
+### Seit 21.09. (alles am Gerät gemessen, macOS 27)
+
+- **Läuft auch unter macOS 27** (ab v10 mit Entitlement nur für 2276;
+  ein Entitlement mit `[2276, 7365]` lehnt AMFI ab, solange Apple 7365
+  nicht im Profil freigegeben hat). Audio und MIDI am T1 vom Inhaber
+  bestätigt.
+- **Prozess-Leck behoben (v12).** `IONewZero`/`IOSafeDeleteNULL` rufen
+  weder Konstruktoren noch Destruktoren auf; die `OSSharedPtr`-Member von
+  `DJMT1Device`/`SL2Device` blieben darum nach dem Abziehen referenziert,
+  der Dext-Prozess lebte weiter und der Versionswechsel hing
+  („terminating for upgrade"). `free()` setzt sie jetzt von Hand zurück.
+  Geprüft: Prozess endet nach dem Abziehen, v12→v13 ohne Neustart.
+  (Damit ist der Neustart-Hinweis unter „Gelernt" nur noch für ältere
+  Fassungen nötig.)
+- **Statistik im Log (v13):** Ein-/Ausgangs-Streams loggen Zähler und
+  Spitzenpegel (alle 125 Completions bei Auffälligkeit, sonst jede
+  zehnte).
+- **DVS kam nicht in aDJusted an — Ursache gefunden.** Das T1 schickt
+  Timecode (CH1/CH2 „USB"-Schalter) nur dann auf USB 1/2 bzw. 3/4, wenn
+  das Routing vorher per USB-Vendor-Request gesetzt wurde; Pioneers
+  „DJM-T1 Setting Utility"/AutoSetup macht das beim Anstecken. Ohne
+  Pioneer-Software bleiben die Kanäle stumm (digitale Nullen).
+  Aus `PioneerDJMSetup.framework` (nur gelesen, nie ausgeführt) gewonnen:
+  `0x40/0x03`, wIndex `0x8002`, wValue 0x1103 (USB 1/2 ← CH1 Timecode
+  PHONO), 0x2203 (USB 3/4 ← CH2 Timecode PHONO); Lesen des Schalters:
+  `0xC0/0x00`, wIndex `0x8002`, 3 Byte (`00 02 01` = CH1 USB, CH2 anderes).
+  Mit diesen Befehlen kam der Timecode (998 Hz bei 33 U/min, ca. -20 dBFS,
+  91° Phase) ohne Pioneer-Software in aDJusted an.
+- **Das Routing überlebt keinen Mixer-Neustart** (gemessen 04.10.: nach
+  Power-Cycle Rauschen um -95 dBFS statt Timecode). Darum setzt der Treiber
+  es ab v14 bei jedem Anstecken selbst (`ApplyT1Routing` in
+  `Start_Impl`). Verifiziert 04.10.: beide Requests liefern `0x0`, Timecode
+  liegt ohne Zusatzwerkzeug auf USB 1/2 (-18,6 dBFS).
+- **Nicht dekodiert:** USB-Ausgangspegel (`0x40/0x03`, wIndex `0x8003`,
+  Wertbedeutung offen), MIDI-Kanal/Tastenmodus aus AutoSetup;
+  CD-Timecode (CDJ) wird nicht gesetzt.
+- Ein „langsamer Tune" war kein Treiberfehler, aDJusted stand auf 45 U/min
+  bei einer 33er Platte.
 
 **Testfassung liegt bereit:** `~/Dropbox/AudioDriver/DJMT1Treiber-1.0.2-8.dmg`
 — App + Programme-Verknüpfung + kurze Anleitung, DMG selbst (nicht nur die
@@ -79,8 +118,14 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
   Transport - VendorID"-Capability hinzufügen), prüft noch intern — noch
   keine Zusage, noch nicht erledigt.
 - **Rane SL2 komplett ungetestet** (siehe oben).
-- Zwei neue Tools liegen unangetastet und ungetestet im Arbeitsverzeichnis,
-  noch nicht committet: `tools/midisniff.swift`, `tools/usbcfgdump.c`.
+- **Latenz/Zittern (Meldung vom 04.10.):** Der Inhaber hört in aDJusted bei
+  DVS eine „extreme" Latenz und ein leichtes Zittern im Tune. Noch nicht
+  gemessen; Messung mit `tools/t1rtt.swift` geplant, vor jeder
+  Parameteränderung (Safety-Offset 3 ms, 4×8-ms-URBs, 50 ms Startvorlauf).
+- **Seltener Signalausfall** ca. 90 s nach Engine-Start (digitale Nullen
+  auf CoreAudio-Ebene) trat vor v13 auf; mit v13/v14 und Statistik-Logs
+  nicht reproduziert, weiter beobachten.
+- `tools/midisniff.swift` liegt ungeprüft und uncommittet im Verzeichnis.
 - Noch nicht systematisch geprüft: Verhalten bei längerer Laufzeit
   (Stunden), Sample-Rate-Wechsel, Schlaf/Aufwachen des Macs, mehrfaches
   Ab-/Anstecken während des Betriebs.
@@ -122,8 +167,14 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
   Deaktivieren).
 - `sl2probe.m`: dasselbe für die Rane SL2. Noch nie am Gerät gelaufen —
   das ist der zwingende nächste Schritt, bevor dem SL2-Code vertraut wird.
-- `usbcfgdump.c`, `midisniff.swift`: unverändert seit der letzten Notiz,
-  ungetestet in dieser Sitzung.
+- `t1levels.swift`: Pegel je Eingangskanal und Tonanalyse (Frequenz,
+  Phase) je Stereopaar über CoreAudio. `t1levels DJM-T1 <Sekunden>`.
+- `t1route.c`: liest den Schalter-Status des T1 und setzt das Routing mit
+  den Pioneer-Requests (`status`, `set <Paar> <Option>`, `tc-phono`).
+- `t1rtt.swift`: Round-Trip-Latenz über den Mixer (Ton auf CH1 aus, über
+  USB 5/6 wieder ein); gibt hörbare Töne aus.
+- `usbcfgdump.c`, `sl2_diag.sh`: SL2-Vorbereitung für den Testtag.
+- `midisniff.swift`: unverändert, ungeprüft.
 
 ## Build-Ablauf (Release)
 
@@ -133,20 +184,22 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 `-exportArchive` mit Developer-ID → `notarytool submit --wait` →
 `stapler staple` → nach `/Applications` kopieren →
 `DJMT1Installer --activate`. Jede neue Fassung braucht eine höhere
-`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 8).
+`CURRENT_PROJECT_VERSION`/`CFBundleVersion` (aktuell 14).
 
 ## Nächste Schritte
 
-1. Bei Apple `idVendor 7365` (Rane) nachbeantragen.
-2. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
+1. Latenz und Zittern messen (`t1rtt`), erst danach etwas ändern.
+2. Neue Tester-DMG (v14) mit Hinweisen: CH1/CH2-Schalter auf USB,
+   33/45 in aDJusted passend zur Platte.
+3. Bei Apple `idVendor 7365` (Rane) weiter nachhalten.
+4. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
    vertrauen.
-3. `tools/midisniff.swift` und `tools/usbcfgdump.c` prüfen und ggf.
-   committen.
+5. `tools/midisniff.swift` prüfen und ggf. committen.
 
 ## Rund um die Sitzung
 
-- **GitHub:** Alle vier Commits dieser Sitzung sind gepusht (bis `1873d56`,
-  auf Anweisung). Der Push lief über den vorhandenen Credential-Helper von
+- **GitHub:** Gepusht bis `c8e2593`; `b032074`, `2ed7a86`, `96489f3` und
+  der v14-Commit liegen lokal (Push nur auf Anweisung). Der Push lief über den vorhandenen Credential-Helper von
   `git` (`https://cYpherBass@github.com/...`), nicht über `gh` — `gh` ist
   weiterhin nicht angemeldet, das Token dafür ist weiterhin weg.
 - **Git-Autor in diesem Repo:** `cYpherBass

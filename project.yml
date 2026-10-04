@@ -10,7 +10,7 @@ settings:
     # Bei gleicher Version ersetzt macOS eine bereits installierte Extension
     # nicht -- jede neue Fassung braucht eine hoehere Nummer.
     MARKETING_VERSION: "1.0.2"
-    CURRENT_PROJECT_VERSION: "13"
+    CURRENT_PROJECT_VERSION: "14"
   configs:
     # Ein mit "Apple Development" signierter Dext laedt nur im Developer-Modus
     # (auf Apple Silicon nur mit SIP-Aenderung). Release wird darum mit
@@ -64,7 +64,7 @@ targets:
         # Explizit, weil xcodegen sonst 1.0/1 festschreibt und macOS eine
         # gleich nummerierte Extension nicht ersetzt.
         CFBundleShortVersionString: "1.0.2"
-        CFBundleVersion: "13"
+        CFBundleVersion: "14"
         OSBundleUsageDescription: "Audio driver for the Pioneer DJM-T1 and Rane SL2"
         IOKitPersonalities:
           DJMT1AudioDriver:
