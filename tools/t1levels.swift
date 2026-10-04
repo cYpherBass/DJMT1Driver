@@ -48,6 +48,7 @@ func sampleRate(_ id: AudioDeviceID) -> Double {
 }
 func db(_ x: Double) -> String { x <= 1e-9 ? "  -inf" : String(format: "%6.1f", 20 * log10(x)) }
 
+setvbuf(stdout, nil, _IOLBF, 0)   // zeilenweise ausgeben, auch beim Umleiten in eine Datei
 let needle = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "DJM-T1"
 let seconds = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2]) ?? 6 : 6
 
@@ -74,9 +75,11 @@ var frames = 0
 var tail = [[Float]](repeating: [], count: nch)   // letzte ~0,5 s je Kanal
 let tailLen = Int(rate / 2)
 
+let lock = NSLock()   // IOProc-Thread und Hauptthread teilen sich die Zaehler
 var proc: AudioDeviceIOProcID?
 let q = DispatchQueue(label: "io")
 let st = AudioDeviceCreateIOProcIDWithBlock(&proc, dev, q) { _, inData, _, _, _ in
+    lock.lock(); defer { lock.unlock() }
     let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
     var base = 0
     for buf in list {
@@ -100,6 +103,7 @@ guard st == noErr, let proc = proc, AudioDeviceStart(dev, proc) == noErr else { 
 
 for s in 1...seconds {
     Thread.sleep(forTimeInterval: 1)
+    lock.lock()
     let fr = Double(max(frames, 1))
     var line = String(format: "t=%2ds frames=%6d |", s, frames)
     for c in 0..<nch {
@@ -107,6 +111,7 @@ for s in 1...seconds {
     }
     print(line)
     peak = [Float](repeating: 0, count: nch); sumSq = [Double](repeating: 0, count: nch); frames = 0
+    lock.unlock()
 }
 AudioDeviceStop(dev, proc)
 

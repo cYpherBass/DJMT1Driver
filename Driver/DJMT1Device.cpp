@@ -68,6 +68,16 @@ struct DJMT1Device_IVars
     uint64_t nextZeroSample = 0;   // next zero-timestamp boundary (sample time)
     uint64_t nextInFrameNumber  = 0;
     uint64_t nextOutFrameNumber = 0;
+
+    // Stream statistics, summed over 125 completions (~1 s). Bad USB frames
+    // used to be skipped silently, so a stalled stream left no trace in the
+    // log. Lines are written when something is off (bad frames, an all-zero
+    // input) and otherwise as a heartbeat every 10th interval.
+    uint32_t inStatURBs = 0, inStatURBBad = 0, inStatOk = 0, inStatBad = 0;
+    uint32_t inStatBytes = 0, inStatPeak = 0, inStatBeats = 0;
+    IOReturn inStatFirstBad = 0, inStatLastURBStatus = 0;
+    uint32_t outStatURBs = 0, outStatURBBad = 0, outStatBad = 0, outStatBeats = 0;
+    IOReturn outStatFirstBad = 0, outStatLastURBStatus = 0;
 };
 
 static bool AllocURB(URB& urb, uint32_t dataBytes, OSAction* action)
@@ -111,6 +121,23 @@ static void PrimeFrameList(URB& urb, uint32_t requestCount)
         urb.frames[i].reserved      = 0;
         urb.frames[i].timeStamp     = 0;
     }
+}
+
+// Largest absolute value among `count` packed little-endian 24-bit samples.
+static uint32_t Peak24(const uint8_t* p, uint32_t count)
+{
+    uint32_t peak = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t u = static_cast<uint32_t>(p[3 * i]) |
+                     (static_cast<uint32_t>(p[3 * i + 1]) << 8) |
+                     (static_cast<uint32_t>(p[3 * i + 2]) << 16);
+        int32_t v = static_cast<int32_t>(u << 8) >> 8;   // sign-extend 24 bit
+        uint32_t a = v < 0 ? static_cast<uint32_t>(-v) : static_cast<uint32_t>(v);
+        if (a > peak) {
+            peak = a;
+        }
+    }
+    return peak;
 }
 
 bool DJMT1Device::init(IOUserAudioDriver* in_driver,
@@ -421,10 +448,29 @@ void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
     uint32_t slot = *reinterpret_cast<uint32_t*>(action->GetReference());
     URB& urb = ivars->inURBs[slot];
 
+    ivars->inStatURBs++;
+    if (status != kIOReturnSuccess) {
+        ivars->inStatURBBad++;
+        ivars->inStatLastURBStatus = status;
+    }
+
     for (uint32_t f = 0; f < kUSBFramesPerURB; f++) {
         IOUSBIsochronousFrame& frame = urb.frames[f];
         uint32_t bytes = (frame.status == kIOReturnSuccess) ? frame.completeCount : 0;
         uint32_t samples = bytes / kBytesPerFrame;
+        if (frame.status == kIOReturnSuccess) {
+            ivars->inStatOk++;
+            ivars->inStatBytes += frame.completeCount;
+            uint32_t pk = Peak24(urb.data_ptr + f * kInPacketSize, samples * kChannels);
+            if (pk > ivars->inStatPeak) {
+                ivars->inStatPeak = pk;
+            }
+        } else {
+            ivars->inStatBad++;
+            if (ivars->inStatFirstBad == 0) {
+                ivars->inStatFirstBad = frame.status;
+            }
+        }
         if (samples > 0) {
             uint64_t pos = ivars->inSampleCount % kRingFrames;
             uint32_t untilWrap = kRingFrames - static_cast<uint32_t>(pos);
@@ -448,6 +494,22 @@ void DJMT1Device::OnIsochInComplete(OSAction* action, IOReturn status)
         }
     }
 
+    if (ivars->inStatURBs >= 125) {
+        ivars->inStatBeats++;
+        bool odd = ivars->inStatBad > 0 || ivars->inStatURBBad > 0 || ivars->inStatPeak == 0;
+        if (odd || ivars->inStatBeats % 10 == 0) {
+            LOG("in stats: urbs=%u urbBad=%u (last 0x%x) framesOk=%u framesBad=%u (first 0x%x) "
+                "bytes=%u peak=%u inSamples=%llu nextFrame=%llu",
+                ivars->inStatURBs, ivars->inStatURBBad, ivars->inStatLastURBStatus,
+                ivars->inStatOk, ivars->inStatBad, ivars->inStatFirstBad,
+                ivars->inStatBytes, ivars->inStatPeak, ivars->inSampleCount,
+                ivars->nextInFrameNumber);
+        }
+        ivars->inStatURBs = ivars->inStatURBBad = ivars->inStatOk = ivars->inStatBad = 0;
+        ivars->inStatBytes = ivars->inStatPeak = 0;
+        ivars->inStatFirstBad = ivars->inStatLastURBStatus = 0;
+    }
+
     PrimeFrameList(urb, kInPacketSize);
     kern_return_t ret = ivars->inPipe->IsochIO(urb.data.get(), urb.frameList.get(),
                                                ivars->nextInFrameNumber,
@@ -466,6 +528,32 @@ void DJMT1Device::OnIsochOutComplete(OSAction* action, IOReturn status)
     }
     uint32_t slot = *reinterpret_cast<uint32_t*>(action->GetReference());
     URB& urb = ivars->outURBs[slot];
+
+    ivars->outStatURBs++;
+    if (status != kIOReturnSuccess) {
+        ivars->outStatURBBad++;
+        ivars->outStatLastURBStatus = status;
+    }
+    for (uint32_t f = 0; f < kUSBFramesPerURB; f++) {
+        if (urb.frames[f].status != kIOReturnSuccess) {
+            ivars->outStatBad++;
+            if (ivars->outStatFirstBad == 0) {
+                ivars->outStatFirstBad = urb.frames[f].status;
+            }
+        }
+    }
+    if (ivars->outStatURBs >= 125) {
+        ivars->outStatBeats++;
+        if (ivars->outStatBad > 0 || ivars->outStatURBBad > 0 || ivars->outStatBeats % 10 == 0) {
+            LOG("out stats: urbs=%u urbBad=%u (last 0x%x) framesBad=%u (first 0x%x) "
+                "outSamples=%llu nextFrame=%llu",
+                ivars->outStatURBs, ivars->outStatURBBad, ivars->outStatLastURBStatus,
+                ivars->outStatBad, ivars->outStatFirstBad, ivars->outSampleCount,
+                ivars->nextOutFrameNumber);
+        }
+        ivars->outStatURBs = ivars->outStatURBBad = ivars->outStatBad = 0;
+        ivars->outStatFirstBad = ivars->outStatLastURBStatus = 0;
+    }
 
     // Refill this URB from the output ring at the current play position.
     for (uint32_t f = 0; f < kUSBFramesPerURB; f++) {
