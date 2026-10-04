@@ -237,8 +237,35 @@ bool SL2Device::SetupIsochTransfers(OSAction** in_isoch_in_actions,
     return true;
 }
 
+static void ResetURB(URB& urb)
+{
+    urb.completion.reset();
+    urb.frameList.reset();
+    urb.data.reset();
+    urb.data_ptr = nullptr;
+    urb.frames = nullptr;
+}
+
 void SL2Device::free()
 {
+    if (ivars) {
+        // Same as DJMT1Device::free(): IONewZero()/IOSafeDeleteNULL() run no
+        // constructors or destructors, so release every OSSharedPtr by hand,
+        // otherwise the strong reference to DJMT1Driver is never dropped.
+        for (uint32_t i = 0; i < kNumURBs; i++) {
+            ResetURB(ivars->inURBs[i]);
+            ResetURB(ivars->outURBs[i]);
+        }
+        ivars->inPipe.reset();
+        ivars->outPipe.reset();
+        ivars->inStream.reset();
+        ivars->outStream.reset();
+        ivars->inRing.reset();
+        ivars->outRing.reset();
+        ivars->outInterface.reset();
+        ivars->inInterface.reset();
+        ivars->driver.reset();
+    }
     IOSafeDeleteNULL(ivars, SL2Device_IVars, 1);
     super::free();
 }

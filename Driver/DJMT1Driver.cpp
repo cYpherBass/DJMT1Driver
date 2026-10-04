@@ -44,6 +44,7 @@ bool DJMT1Driver::init()
 
 void DJMT1Driver::free()
 {
+    LOG("free");
     if (ivars) {
         ivars->interface.reset();
         ivars->secondInterface.reset();
@@ -310,9 +311,14 @@ void DJMT1Driver::HandleIsochOutComplete_Impl(OSAction* action, IOReturn status)
 
 kern_return_t IMPL(DJMT1Driver, Stop)
 {
+    // Lifecycle logs: after unplugging the T1 the dext process used to stay
+    // alive (and block later version upgrades); these show where teardown
+    // stops, or whether Stop/free are reached at all.
+    LOG("Stop: begin");
     if (ivars->device) {
         RemoveObject(ivars->device.get());
         ivars->device.reset();
+        LOG("Stop: audio device removed");
     }
     ivars->pioneerDevice.reset();
     ivars->raneDevice.reset();
@@ -323,6 +329,9 @@ kern_return_t IMPL(DJMT1Driver, Stop)
     if (ivars->interface) {
         ivars->interface->Close(this, 0);
         ivars->interface.reset();
+        LOG("Stop: interface closed");
     }
-    return Stop(provider, SUPERDISPATCH);
+    kern_return_t ret = Stop(provider, SUPERDISPATCH);
+    LOG("Stop: super returned 0x%x", ret);
+    return ret;
 }

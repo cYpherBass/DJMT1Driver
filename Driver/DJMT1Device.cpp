@@ -238,8 +238,39 @@ bool DJMT1Device::SetupIsochTransfers(OSAction** in_isoch_in_actions,
     return true;
 }
 
+static void ResetURB(URB& urb)
+{
+    urb.completion.reset();
+    urb.frameList.reset();
+    urb.data.reset();
+    urb.data_ptr = nullptr;
+    urb.frames = nullptr;
+}
+
 void DJMT1Device::free()
 {
+    LOG("free");
+    if (ivars) {
+        // IONewZero()/IOSafeDeleteNULL() never run constructors or
+        // destructors, so every OSSharedPtr in the ivars has to be released
+        // by hand. Without this the device kept a strong reference to
+        // DJMT1Driver (ivars->driver, and the completion actions, whose
+        // target is the driver): DJMT1Driver::free() never ran, the dext
+        // process stayed alive after the T1 was unplugged, and it blocked
+        // later version upgrades until a reboot.
+        for (uint32_t i = 0; i < kNumURBs; i++) {
+            ResetURB(ivars->inURBs[i]);
+            ResetURB(ivars->outURBs[i]);
+        }
+        ivars->inPipe.reset();
+        ivars->outPipe.reset();
+        ivars->inStream.reset();
+        ivars->outStream.reset();
+        ivars->inRing.reset();
+        ivars->outRing.reset();
+        ivars->interface.reset();
+        ivars->driver.reset();
+    }
     IOSafeDeleteNULL(ivars, DJMT1Device_IVars, 1);
     super::free();
 }
