@@ -1,4 +1,4 @@
-# Stand: DJM-T1 / Rane-SL2-Treiber (04.10.2026)
+# Stand: DJM-T1 / Rane-SL2-Treiber (15.10.2026)
 
 Laufende Stand-Notiz, liest jede Claude-Sitzung in diesem Ordner zuerst.
 Enthält nur Belegtes; offene Punkte sind als offen markiert.
@@ -157,7 +157,6 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
 - **Seltener Signalausfall** ca. 90 s nach Engine-Start (digitale Nullen
   auf CoreAudio-Ebene) trat vor v13 auf; mit v13/v14 und Statistik-Logs
   nicht reproduziert, weiter beobachten.
-- `tools/midisniff.swift` liegt ungeprüft und uncommittet im Verzeichnis.
 - Noch nicht systematisch geprüft: Verhalten bei längerer Laufzeit
   (Stunden), Sample-Rate-Wechsel, Schlaf/Aufwachen des Macs, mehrfaches
   Ab-/Anstecken während des Betriebs.
@@ -208,7 +207,10 @@ dem Gerät zuerst `tools/sl2probe.m` laufen lassen (README).
 - `t1tone.swift`: Dauerton auf einem Ausgangspaar (0–2) zum Abhören, was
   der Mixer damit macht.
 - `usbcfgdump.c`, `sl2_diag.sh`: SL2-Vorbereitung für den Testtag.
-- `midisniff.swift`: unverändert, ungeprüft.
+- `midisniff.swift`: schreibt jede MIDI-1.0-Channel-Message einer
+  CoreMIDI-Quelle in eine Logdatei (`midisniff <Logdatei> [Quellname]`,
+  Standard `DJM-T1`). Damit ist am 03.09. das T1-Mapping in DeckLab
+  abgeleitet worden. Committet in `a3a83b6` (15.10.).
 
 ## Build-Ablauf (Release)
 
@@ -230,7 +232,6 @@ der Archiv-Info.plist ergänzen → `Products/System` löschen →
 3. Bei Apple `idVendor 7365` (Rane) weiter nachhalten.
 4. Rane SL2: `sl2probe` am Gerät fahren, danach erst dem `SL2Device`-Code
    vertrauen.
-5. `tools/midisniff.swift` prüfen und ggf. committen.
 
 ## Rund um die Sitzung
 
